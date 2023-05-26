@@ -1,0 +1,33 @@
+{
+  "name": "sdc_qa_api",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "start": "nodemon server/server.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/koenarnold/Questions-AnswersAPI.git"
+  },
+  "author": "koen arnold",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/koenarnold/Questions-AnswersAPI/issues"
+  },
+  "homepage": "https://github.com/koenarnold/Questions-AnswersAPI#readme",
+  "dependencies": {
+    "csv-parse": "^5.3.10",
+    "csv-parser": "^3.0.0",
+    "dotenv": "^16.0.3",
+    "express": "^4.18.2",
+    "fs": "^0.0.1-security",
+    "mongodb": "^5.5.0",
+    "mongoose": "^7.2.0",
+    "nodemon": "^2.0.22",
+    "pg": "^8.11.0",
+    "pg-hstore": "^2.3.4",
+    "sequelize": "^6.31.1"
+  }
+}
