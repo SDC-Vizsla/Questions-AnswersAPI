@@ -3,6 +3,7 @@ require('dotenv').config()
 
 
 exports.getQuestions = async (req, res)=>{
+  var startTime = performance.now();
   var count = 5;
   if (req.query.count) {
     count = req.query.count
@@ -41,7 +42,11 @@ exports.getQuestions = async (req, res)=>{
       }
     }
     const result = {'product_id': req.query.product_id, 'results': questionsResult.rows}
-    console.log(result)
+
+    var endTime = performance.now();
+    var time = ((endTime - startTime) / 1000).toFixed(3);
+    console.log(`Data loaded to questions_list, time used: ${time} seconds`);
+
     res.send(result)
     res.status(200)
   } else {
@@ -50,6 +55,7 @@ exports.getQuestions = async (req, res)=>{
 }
 
 exports.getAnswers = async (req, res) => {
+  var startTime = performance.now();
   var count = 5;
   if (req.query.count) {
     count = req.query.count
@@ -61,10 +67,53 @@ exports.getAnswers = async (req, res) => {
       answersResult.rows[i].photos = answersPhotosResult.rows;
     }
     const result = {'question': req.params.question_id, 'page': 1, 'count': count, 'results': answersResult.rows}
-    console.log(result)
+
+    var endTime = performance.now();
+    var time = ((endTime - startTime) / 1000).toFixed(3);
+    console.log(`Data loaded to questions_list, time used: ${time} seconds`);
+
     res.send(result)
     res.status(200)
   } else {
     res.send('please enter a valid question id').status(200)
   }
+}
+
+exports.addQuestion = async (req, res) => {
+  console.log(req.body)
+  var d = new Date();
+  var date = (d.getTime() - d.getMilliseconds()) / 1000;
+
+  // ! ^^ THIS DATE IS INCORRECT
+
+  const lastQuestionID = await pool.query(`SELECT question_id FROM ${process.env.SCHEMA}.questions ORDER BY question_id DESC LIMIT 1`);
+  const questionID = lastQuestionID.rows[0].question_id + 1;
+
+// ^^ THIS IS A DUMB WAY TO DO THIS, BUT I NEED A UNIQUE QUESTION_ID ^^
+
+  await pool.query(`INSERT INTO ${process.env.SCHEMA}.questions (question_id, product_id, body, date_written, asker_name, asker_email, reported, helpfulness) VALUES (${questionID}, '${req.body.product_id}', '${req.body.body}', ${date}, '${req.body.name}', '${req.body.email}', 0, 0)`)
+  res.send('question works')
+}
+
+exports.addAnswer = async (req, res) => {
+  console.log(req.params)
+  res.send('answer works')
+}
+
+exports.makeQuestionHelpful = async (req, res) => {
+  console.log(req.params)
+  res.send('question works')
+}
+
+exports.reportQuestion = async (req, res) => {
+  res.send('answer works')
+}
+
+exports.makeAnswerHelpful = async (req, res) => {
+  console.log(req.params)
+  res.send('question works')
+}
+
+exports.reportAnswer = async (req, res) => {
+  res.send('answer works')
 }
