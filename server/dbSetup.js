@@ -20,8 +20,8 @@ const setupDB = async function () {
     await client.query(`CREATE SCHEMA IF NOT EXISTS ${process.env.SCHEMA}`)
 
     await client.query(`CREATE TABLE IF NOT EXISTS ${process.env.SCHEMA}.questions
-    (question_id BIGINT,
-    product_id BIGINT,
+    (question_id SERIAL PRIMARY KEY,
+    product_id INTEGER,
     body VARCHAR (1000),
     date_written BIGINT,
     asker_name VARCHAR,
@@ -30,19 +30,26 @@ const setupDB = async function () {
     helpfulness INTEGER)`);
 
     await client.query(`CREATE TABLE IF NOT EXISTS ${process.env.SCHEMA}.answers
-    (answer_id BIGINT,
-    question_id BIGINT,
+    (answer_id SERIAL PRIMARY KEY,
+    question_id INTEGER,
     body VARCHAR (1000),
     date_written BIGINT,
     answerer_name VARCHAR,
     answerer_email VARCHAR,
     reported INTEGER,
-    helpfulness INTEGER)`);
+    helpfulness INTEGER,
+    FOREIGN KEY (question_id) REFERENCES ${process.env.SCHEMA}.questions (question_id))`);
 
     await client.query(`CREATE TABLE IF NOT EXISTS ${process.env.SCHEMA}.answers_photos
-    (photo_id BIGINT,
+    (photo_id SERIAL PRIMARY KEY,
     answer_id BIGINT,
     url VARCHAR)`);
+  }
+
+  const createIndexes = async function () {
+    await client.query(`CREATE INDEX product_id_index ON ${process.env.SCHEMA}.questions (product_id)`);
+    await client.query(`CREATE INDEX question_id_index ON ${process.env.SCHEMA}.answers (question_id)`);
+    await client.query(`CREATE INDEX answer_id_index ON ${process.env.SCHEMA}.answers_photos (answer_id)`);
   }
 
   const loadQuestionData = async function () {
@@ -75,16 +82,14 @@ const setupDB = async function () {
   }
 
 
-    createSchemaAndTables().then(async ()=>{
-      var isQTableEmpty = await client.query(`SELECT * FROM ${process.env.SCHEMA}.questions WHERE question_id = 1`)
-      var isATableEmpty = await client.query(`SELECT * FROM ${process.env.SCHEMA}.answers WHERE answer_id = 1`)
-      var isAPTableEmpty = await client.query(`SELECT * FROM ${process.env.SCHEMA}.answers_photos WHERE photo_id = 1`)
+    createSchemaAndTables().then(()=>{createIndexes()}).then(async ()=>{
+      var isQTableEmpty = await client.query(`SELECT * FROM ${process.env.SCHEMA}.questions LIMIT 1`)
+      var isATableEmpty = await client.query(`SELECT * FROM ${process.env.SCHEMA}.answers LIMIT 1`)
+      var isAPTableEmpty = await client.query(`SELECT * FROM ${process.env.SCHEMA}.answers_photos LIMIT 1`)
 
       if (isQTableEmpty.rows.length === 0 && isATableEmpty.rows.length === 0 && isAPTableEmpty.rows.length === 0) {
         try {
-        await loadQuestionData();
-        await loadAnswerData();
-        await loadAnswersPhotosData();
+        await loadQuestionData().then(loadAnswerData).then(loadAnswersPhotosData)
         } catch (error) {
           console.log('error: ', error)
         }
@@ -95,3 +100,5 @@ const setupDB = async function () {
 
 
 setupDB()
+
+
