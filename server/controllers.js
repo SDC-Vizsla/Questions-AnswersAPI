@@ -3,20 +3,17 @@ require('dotenv').config()
 
 
 exports.getQuestions = async (req, res)=>{
+
   var startTime = performance.now();
+
   var count = 5;
   if (req.query.count) {
     count = req.query.count
   }
-  // check that the product_id is given and its a number
   if (req.query.product_id && Number(req.query.product_id)) {
-    // grab all the questions for the given product
     const questionsResult = await pool.query(`SELECT question_id, body, date_written, asker_name, asker_email, reported, helpfulness FROM ${process.env.SCHEMA}.questions WHERE product_id = ${req.query.product_id} LIMIT ${count}`)
-    // iterate over the list of answers returned
     for (var i = 0; i < questionsResult.rows.length; i++) {
-      // change the date to be readable
       questionsResult.rows[i].date_written = new Date(parseInt(questionsResult.rows[i].date_written)).toISOString();
-      // change reported to a boolean
       switch(questionsResult.rows[i].reported) {
         case 0:
           questionsResult.rows[i].reported = false;
@@ -25,19 +22,12 @@ exports.getQuestions = async (req, res)=>{
           questionsResult.rows[i].reported = true;
           break;
       }
-      // grab all the answers for the given questions
-      const answersResult = await pool.query(`SELECT answer_id, body, date_written, answerer_name, helpfulness FROM ${process.env.SCHEMA}.answers WHERE question_id = ${questionsResult.rows[i].question_id}`)
-      // create a answers obj on each question
+      const answersResult = await pool.query(`SELECT answer_id, body, date_written, answerer_name, reported, helpfulness FROM ${process.env.SCHEMA}.answers WHERE question_id = ${questionsResult.rows[i].question_id}`)
       questionsResult.rows[i].answers = {}
-      // iterate over each answer returned
       for (var j = 0; j < answersResult.rows.length; j++) {
-        // make the date readable
         answersResult.rows[j].date_written = new Date(parseInt(answersResult.rows[j].date_written)).toISOString();
-        // create an object that will hold the answer
         questionsResult.rows[i].answers[answersResult.rows[j].answer_id] = answersResult.rows[j]
-        // grab all the photos for the current answer
         const answersPhotosResult = await pool.query(`SELECT photo_id, url FROM ${process.env.SCHEMA}.answers_photos WHERE answer_id = ${answersResult.rows[j].answer_id}`)
-        // create a photos obj in the answer and place the photos in there
         questionsResult.rows[i].answers[answersResult.rows[j].answer_id].photos = answersPhotosResult.rows
       }
     }
@@ -48,21 +38,30 @@ exports.getQuestions = async (req, res)=>{
     console.log(`Data loaded from questions, time used: ${time} seconds`);
 
     res.send(result)
-    res.status(200)
   } else {
     res.send('please include a product id')
   }
 }
 
 exports.getAnswers = async (req, res) => {
+
   var startTime = performance.now();
+
   var count = 5;
   if (req.query.count) {
     count = req.query.count
   }
   if (req.params.question_id && Number(req.params.question_id)) {
-    const answersResult = await pool.query(`SELECT answer_id, body, date_written, answerer_name, helpfulness FROM ${process.env.SCHEMA}.answers WHERE question_id = ${req.params.question_id} LIMIT ${count}`)
+    const answersResult = await pool.query(`SELECT answer_id, body, date_written, answerer_name, reported, helpfulness FROM ${process.env.SCHEMA}.answers WHERE question_id = ${req.params.question_id} LIMIT ${count}`)
     for (var i = 0; i < answersResult.rows.length; i++) {
+      switch(answersResult.rows[i].reported) {
+        case 0:
+          answersResult.rows[i].reported = false;
+          break;
+        case 1:
+          answersResult.rows[i].reported = true;
+          break;
+      }
       const answersPhotosResult = await pool.query(`SELECT photo_id, url FROM ${process.env.SCHEMA}.answers_photos WHERE answer_id = ${answersResult.rows[i].answer_id}`)
       answersResult.rows[i].photos = answersPhotosResult.rows;
     }
@@ -73,7 +72,6 @@ exports.getAnswers = async (req, res) => {
     console.log(`Data loaded from answers, time used: ${time} seconds`);
 
     res.send(result)
-    res.status(200)
   } else {
     res.send('please enter a valid question id').status(200)
   }
@@ -82,9 +80,7 @@ exports.getAnswers = async (req, res) => {
 exports.addQuestion = async (req, res) => {
   const lastQuestionID = await pool.query(`SELECT question_id FROM ${process.env.SCHEMA}.questions ORDER BY question_id DESC LIMIT 1`);
   const questionID = lastQuestionID.rows[0].question_id + 1;
-
 // ^^ THIS IS A DUMB WAY TO DO THIS, BUT I NEED A UNIQUE QUESTION_ID ^^
-
   await pool.query(`INSERT INTO ${process.env.SCHEMA}.questions (question_id, product_id, body, date_written, asker_name, asker_email, reported, helpfulness) VALUES (${questionID}, '${req.body.product_id}', '${req.body.body}', ${Date.now()}, '${req.body.name}', '${req.body.email}', 0, 0)`).catch((err)=>{console.error('error adding answer, question id is probably invalid: ', err)})
   res.send('question works')
 }
@@ -98,7 +94,6 @@ exports.addAnswer = async (req, res) => {
     return;
   }
 // ^^ THIS IS A DUMB WAY TO DO THIS, BUT I NEED A UNIQUE ANSWER_ID ^^
-
   await pool.query(`INSERT INTO ${process.env.SCHEMA}.answers (answer_id, question_id, body, date_written, answerer_name, answerer_email, reported, helpfulness) VALUES (${answerID}, ${req.params.question_id}, '${req.body.body}', ${Date.now()}, '${req.body.name}', '${req.body.email}', 0, 0)`)
   for (var i = 0; i < req.body.photos.length; i++) {
     var lastPhotoID = await pool.query(`SELECT photo_id FROM ${process.env.SCHEMA}.answers_photos ORDER BY photo_id DESC LIMIT 1`);
@@ -109,19 +104,39 @@ exports.addAnswer = async (req, res) => {
 }
 
 exports.makeQuestionHelpful = async (req, res) => {
-  console.log(req.params)
-  res.send('question works')
+  await pool.query(`UPDATE ${process.env.SCHEMA}.questions SET helpfulness = helpfulness + 1 WHERE question_id = ${req.params.question_id}`)
+  res.send('make question helpful works')
 }
 
 exports.reportQuestion = async (req, res) => {
-  res.send('answer works')
+  const currentReported = await pool.query(`SELECT reported FROM ${process.env.SCHEMA}.questions WHERE question_id = ${req.params.question_id}`)
+  switch(currentReported.rows[0].reported) {
+    case 0:
+      await pool.query(`UPDATE ${process.env.SCHEMA}.questions SET reported = 1 WHERE question_id = ${req.params.question_id}`)
+      res.send('reported question works')
+      break;
+    case 1:
+      await pool.query(`UPDATE ${process.env.SCHEMA}.questions SET reported = 0 WHERE question_id = ${req.params.question_id}`)
+      res.send('unreported question works')
+      break;
+  }
 }
 
 exports.makeAnswerHelpful = async (req, res) => {
-  console.log(req.params)
-  res.send('question works')
+  await pool.query(`UPDATE ${process.env.SCHEMA}.answers SET helpfulness = helpfulness + 1 WHERE answer_id = ${req.params.answer_id}`)
+  res.send('make answer helpful works')
 }
 
 exports.reportAnswer = async (req, res) => {
-  res.send('answer works')
+  const currentReported = await pool.query(`SELECT reported FROM ${process.env.SCHEMA}.answers WHERE answer_id = ${req.params.answer_id}`)
+  switch(currentReported.rows[0].reported) {
+    case 0:
+      await pool.query(`UPDATE ${process.env.SCHEMA}.answers SET reported = 1 WHERE answer_id = ${req.params.answer_id}`)
+      res.send('reported question works')
+      break;
+    case 1:
+      await pool.query(`UPDATE ${process.env.SCHEMA}.answers SET reported = 0 WHERE answer_id = ${req.params.answer_id}`)
+      res.send('unreported question works')
+      break;
+  }
 }
