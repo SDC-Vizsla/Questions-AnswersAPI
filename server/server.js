@@ -15,7 +15,7 @@ app.get('/qa/questions/:question_id/answers', controllers.getAnswers)
 
 app.post('/qa/questions', controllers.addQuestion)
 
-app.post('/qa/questions/:questions_id/answers', controllers.addAnswer)
+app.post('/qa/questions/:question_id/answers', controllers.addAnswer)
 
 app.put('/qa/questions/:question_id/helpful', controllers.makeQuestionHelpful)
 

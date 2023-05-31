@@ -45,7 +45,7 @@ exports.getQuestions = async (req, res)=>{
 
     var endTime = performance.now();
     var time = ((endTime - startTime) / 1000).toFixed(3);
-    console.log(`Data loaded to questions_list, time used: ${time} seconds`);
+    console.log(`Data loaded from questions, time used: ${time} seconds`);
 
     res.send(result)
     res.status(200)
@@ -70,7 +70,7 @@ exports.getAnswers = async (req, res) => {
 
     var endTime = performance.now();
     var time = ((endTime - startTime) / 1000).toFixed(3);
-    console.log(`Data loaded to questions_list, time used: ${time} seconds`);
+    console.log(`Data loaded from answers, time used: ${time} seconds`);
 
     res.send(result)
     res.status(200)
@@ -80,24 +80,32 @@ exports.getAnswers = async (req, res) => {
 }
 
 exports.addQuestion = async (req, res) => {
-  console.log(req.body)
-  var d = new Date();
-  var date = (d.getTime() - d.getMilliseconds()) / 1000;
-
-  // ! ^^ THIS DATE IS INCORRECT
-
   const lastQuestionID = await pool.query(`SELECT question_id FROM ${process.env.SCHEMA}.questions ORDER BY question_id DESC LIMIT 1`);
   const questionID = lastQuestionID.rows[0].question_id + 1;
 
 // ^^ THIS IS A DUMB WAY TO DO THIS, BUT I NEED A UNIQUE QUESTION_ID ^^
 
-  await pool.query(`INSERT INTO ${process.env.SCHEMA}.questions (question_id, product_id, body, date_written, asker_name, asker_email, reported, helpfulness) VALUES (${questionID}, '${req.body.product_id}', '${req.body.body}', ${date}, '${req.body.name}', '${req.body.email}', 0, 0)`)
+  await pool.query(`INSERT INTO ${process.env.SCHEMA}.questions (question_id, product_id, body, date_written, asker_name, asker_email, reported, helpfulness) VALUES (${questionID}, '${req.body.product_id}', '${req.body.body}', ${Date.now()}, '${req.body.name}', '${req.body.email}', 0, 0)`).catch((err)=>{console.error('error adding answer, question id is probably invalid: ', err)})
   res.send('question works')
 }
 
 exports.addAnswer = async (req, res) => {
-  console.log(req.params)
-  res.send('answer works')
+  const lastAnswerID = await pool.query(`SELECT answer_id FROM ${process.env.SCHEMA}.answers ORDER BY answer_id DESC LIMIT 1`);
+  const answerID = lastAnswerID.rows[0].answer_id + 1;
+  const validQuestionIDCheck = await pool.query(`SELECT * FROM ${process.env.SCHEMA}.questions WHERE question_id = ${req.params.question_id} LIMIT 1`);
+  if (validQuestionIDCheck.rows.length === 0) {
+    res.send('enter valid question id');
+    return;
+  }
+// ^^ THIS IS A DUMB WAY TO DO THIS, BUT I NEED A UNIQUE ANSWER_ID ^^
+
+  await pool.query(`INSERT INTO ${process.env.SCHEMA}.answers (answer_id, question_id, body, date_written, answerer_name, answerer_email, reported, helpfulness) VALUES (${answerID}, ${req.params.question_id}, '${req.body.body}', ${Date.now()}, '${req.body.name}', '${req.body.email}', 0, 0)`)
+  for (var i = 0; i < req.body.photos.length; i++) {
+    var lastPhotoID = await pool.query(`SELECT photo_id FROM ${process.env.SCHEMA}.answers_photos ORDER BY photo_id DESC LIMIT 1`);
+    const photoID = await lastPhotoID.rows[0].photo_id + 1;
+    await pool.query(`INSERT INTO ${process.env.SCHEMA}.answers_photos (photo_id, answer_id, url) VALUES (${photoID}, ${answerID}, '${req.body.photos[i]}')`);
+  }
+  res.send('question works')
 }
 
 exports.makeQuestionHelpful = async (req, res) => {
